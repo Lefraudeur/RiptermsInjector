@@ -153,6 +153,7 @@
     <ClCompile Include="Process\Process.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="dll\dll.dll.hpp" />
     <ClInclude Include="Injector\Injector.hpp" />
     <ClInclude Include="PEParser\PEParser.hpp" />
     <ClInclude Include="Process\Process.hpp" />

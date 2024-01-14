@@ -131,7 +131,7 @@ public:
 	{
 		if (!process_handle)
 			return 0;
-		DWORD o = set_protection((uint8_t*)address, sizeof(T), PAGE_EXECUTE_READWRITE);
+		DWORD o = set_protection((uint8_t*)address, sizeof(T), PAGE_READWRITE);
 		size_t bytes_written = 0;
 		WriteProcessMemory(process_handle, address, &data, sizeof(T), &bytes_written);
 		set_protection((uint8_t*)address, sizeof(T), o);
@@ -142,7 +142,7 @@ public:
 	{
 		if (!process_handle)
 			return 0;
-		DWORD o = set_protection((uint8_t*)address, sizeof(T) * element_count, PAGE_EXECUTE_READWRITE);
+		DWORD o = set_protection((uint8_t*)address, sizeof(T) * element_count, PAGE_READWRITE);
 		size_t bytes_written = 0;
 		WriteProcessMemory(process_handle, address, array, sizeof(T) * element_count, &bytes_written);
 		set_protection((uint8_t*)address, sizeof(T) * element_count, o);

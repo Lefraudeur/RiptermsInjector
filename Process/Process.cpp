@@ -13,7 +13,7 @@ Process::Process(const char* window_name)
 
 Process::Process(const Process& o_process)
 {
-	this->process_handle = OpenProcess(PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE, FALSE, o_process.pid);
+	this->process_handle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, o_process.pid);
 	this->pid = o_process.pid;
 }
 
@@ -54,7 +54,7 @@ void Process::open(const char* window_name)
 	}
 	if (process_handle)
 		CloseHandle(process_handle);
-	process_handle = OpenProcess(PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE, FALSE, pid);
+	process_handle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
 }
 
 uint8_t* Process::allocate_memory(uint8_t* address, size_t size, DWORD protection)
@@ -210,13 +210,13 @@ void Process::disableHooks()
 			for (size_t it = sv.find('\xE9', 0); it != sv.npos; it = sv.find('\xE9', ++it))
 			{
 				uint8_t* found = start + it;
-				uint32_t offset = found - module_copy.get();
+				uint32_t offset = (uint32_t)(found - module_copy.get());
 				jmps.push_back(module_base_addr + offset);
 			}
 
 			for (uint8_t* jmp : jmps)
 			{
-				uint32_t offset = jmp - module_base_addr;
+				uint32_t offset = (uint32_t)(jmp - module_base_addr);
 				uint8_t* possible_modified_bytes = module_copy.get() + offset;
 				uint32_t virtual_section_offset = offset - section->VirtualAddress;
 				uint32_t file_offset = section->PointerToRawData + virtual_section_offset;
@@ -244,7 +244,7 @@ Process::RemoteString::RemoteString(Process& process, const std::string& str):
 	remote_string_addr(process.allocate_memory(nullptr, str.size() + 1, PAGE_READONLY))
 {
 	const char* c_str = str.c_str();
-	process.write_memory<char>((char*)remote_string_addr, (char*)c_str, str.size() + 1);
+	process.write_memory<char>((char*)remote_string_addr, (char*)c_str, (int)(str.size() + 1));
 }
 
 Process::RemoteString::RemoteString(const RemoteString& o_remoteString):
