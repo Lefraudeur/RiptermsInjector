@@ -27,6 +27,9 @@
     <ClCompile Include="Injector\Injector.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ProcessSelector\ProcessSelector.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Process\Process.hpp">
@@ -39,6 +42,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="dll\dll.dll.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ProcessSelector\ProcessSelector.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

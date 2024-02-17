@@ -27,6 +27,7 @@ private:
 		VirtualProtect_t VirtualProtect_address;
 		void(*set_imports)(HookData* data);
 		RtlAddFunctionTable_t RtlAddFunctionTable_address;
+		DWORD* buffer;
 	};
 	static void set_imports(HookData* data);
 

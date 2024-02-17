@@ -150,12 +150,14 @@
     <ClCompile Include="Injector\Injector.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="PEParser\PEParser.cpp" />
+    <ClCompile Include="ProcessSelector\ProcessSelector.cpp" />
     <ClCompile Include="Process\Process.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="dll\dll.dll.hpp" />
     <ClInclude Include="Injector\Injector.hpp" />
     <ClInclude Include="PEParser\PEParser.hpp" />
+    <ClInclude Include="ProcessSelector\ProcessSelector.hpp" />
     <ClInclude Include="Process\Process.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

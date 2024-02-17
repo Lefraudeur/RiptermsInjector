@@ -17,6 +17,11 @@ Process::Process(const Process& o_process)
 	this->pid = o_process.pid;
 }
 
+Process::Process(DWORD pid)
+{
+	open(pid);
+}
+
 Process::Process()
 {
 }
@@ -46,15 +51,22 @@ void Process::open(const char* window_name)
 		std::cerr << "[-] Failed to get window\n";
 		return;
 	}
-	GetWindowThreadProcessId(process_window, &pid);
-	if (!pid)
+	DWORD l_pid = 0;
+	GetWindowThreadProcessId(process_window, &l_pid);
+	if (!l_pid)
 	{
 		std::cerr << "[-] Failed to get process ID\n";
 		return;
 	}
+	open(l_pid);
+}
+
+void Process::open(DWORD pid)
+{
 	if (process_handle)
 		CloseHandle(process_handle);
 	process_handle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+	this->pid = pid;
 }
 
 uint8_t* Process::allocate_memory(uint8_t* address, size_t size, DWORD protection)

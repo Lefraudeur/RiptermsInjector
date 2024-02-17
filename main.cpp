@@ -7,18 +7,18 @@
 #include <filesystem>
 #include "Injector/Injector.hpp"
 #include "dll/dll.dll.hpp"
+#include "ProcessSelector/ProcessSelector.hpp"
 
 int main(int argc, const char* argv[])
 {
-	Process process{"Lunar Client 1.8.9 (v2.13.2-2402)"};
-	while (!process)
+
+	DWORD pid = ProcessSelector::ask_pid();
+
+	Process process{ pid };
+	if (!process)
 	{
-		std::string window_name{};
-		std::cout << "Window name: ";
-		std::getline(std::cin, window_name);
-		process = window_name.c_str();
-		if (!process)
-			std::cerr << "[-] Failed to open target process\n";
+		std::cerr << "[-] Failed to open target process\n";
+		return -1;
 	}
 
 	Injector injector(process);

@@ -15,12 +15,14 @@ class Process
 public:
 	Process(const char* window_name);
 	Process(const Process& o_process);
+	Process(DWORD pid);
 	Process();
 	~Process();
 
 	operator bool() const;
 	Process& operator=(const char* window_name);
 	void open(const char* window_name);
+	void open(DWORD pid);
 
 	void disableHooks();
 	uint8_t* allocate_memory(uint8_t* address, size_t size, DWORD protection = PAGE_EXECUTE_READWRITE);

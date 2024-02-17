@@ -13,7 +13,7 @@ void Injector::inject(uint8_t dll_bytes[], size_t dll_size)
 	PIMAGE_NT_HEADERS nt_header = (PIMAGE_NT_HEADERS)(dll_bytes + dos_header->e_lfanew);
 	uint32_t image_size_memory = nt_header->OptionalHeader.SizeOfImage;
 
-	Process::RemoteMemoryHolder<uint8_t> remote_image = process.remote_allocate<uint8_t>(image_size_memory, PAGE_EXECUTE_READWRITE);
+	Process::RemoteMemoryHolder<uint8_t> remote_image = process.remote_allocate<uint8_t>(image_size_memory, PAGE_READWRITE);
 	relocate(dll_bytes, dll_size, remote_image.get());
 
 	process.write_memory<uint8_t>(remote_image.get(), dll_bytes, nt_header->OptionalHeader.SizeOfHeaders);
@@ -24,7 +24,7 @@ void Injector::inject(uint8_t dll_bytes[], size_t dll_size)
 		if (section->Misc.VirtualSize > section->SizeOfRawData)
 		{
 			int zero_count = section->Misc.VirtualSize - section->SizeOfRawData;
-			std::unique_ptr<uint8_t[]> zeros = std::make_unique<uint8_t[]>(section->Misc.VirtualSize - section->SizeOfRawData);
+			std::unique_ptr<uint8_t[]> zeros = std::make_unique<uint8_t[]>(zero_count);
 			process.write_memory<uint8_t>(remote_image.get() + section->VirtualAddress + section->SizeOfRawData, zeros.get(), zero_count);
 		}
 	}
@@ -66,6 +66,8 @@ void Injector::inject(uint8_t dll_bytes[], size_t dll_size)
 		Process::RemoteMemoryHolder<uint8_t> remote_set_imports = process.remote_allocate<uint8_t>(0x200, PAGE_EXECUTE_READ);
 		remote_set_imports.write((uint8_t*)set_imports, 0x200); //we don't know the size of the function (around 0x1C1)
 
+		Process::RemoteMemoryHolder<DWORD> remote_buffer = process.remote_allocate<DWORD>(PAGE_READWRITE);
+
 		HookData data
 		{
 			original_HeapAlloc_address,
@@ -75,7 +77,8 @@ void Injector::inject(uint8_t dll_bytes[], size_t dll_size)
 			GetProcAddress_address,
 			VirtualProtect_address,
 			(void(*)(HookData* data))remote_set_imports.get(),
-			RtlAddFunctionTable_address
+			RtlAddFunctionTable_address,
+			remote_buffer.get()
 		};
 
 		Process::RemoteMemoryHolder<uint8_t> remote_data = process.remote_allocate<uint8_t>(sizeof(assembly) + sizeof(data), PAGE_EXECUTE_READ);
@@ -152,9 +155,9 @@ void Injector::relocate(uint8_t dll_bytes[], size_t dll_size, uint8_t* new_image
 				continue;
 			}
 			uint8_t** p_to_reloc = (uint8_t**)(dll_bytes + reloc_base_fo + entries_start->Offset);
-			std::cout << "reloc: " << (void*)*p_to_reloc;
+			//std::cout << "reloc: " << (void*)*p_to_reloc;
 			*p_to_reloc =  new_image_base + (*p_to_reloc - (uint8_t*)nt_header->OptionalHeader.ImageBase);
-			std::cout << " -> " << (void*)*p_to_reloc << '\n';
+			//std::cout << " -> " << (void*)*p_to_reloc << '\n';
 		}
 
 		base_start = (PIMAGE_BASE_RELOCATION)entries_end;
@@ -167,11 +170,14 @@ void Injector::set_imports(HookData* data)
 	const LoadLibraryA_t LoadLibraryA_address = data->LoadLibraryA_address;
 	const GetProcAddress_t GetProcAddress_address = data->GetProcAddress_address;
 	const VirtualProtect_t VirtualProtect_address = data->VirtualProtect_address;
+	const RtlAddFunctionTable_t RtlAddFunctionTable_address = data->RtlAddFunctionTable_address;
+
+	const HeapAlloc_t* p_HeapAlloc_IAT = data->p_HeapAlloc_IAT;
 
 	const PIMAGE_DOS_HEADER dos_header = (PIMAGE_DOS_HEADER)image_base;
 	const PIMAGE_NT_HEADERS nt_headers = (PIMAGE_NT_HEADERS)(image_base + dos_header->e_lfanew);
 
-	VirtualProtect_address(data->p_HeapAlloc_IAT, 8, PAGE_READONLY, (DWORD*)&data->set_imports);
+	VirtualProtect_address(data->p_HeapAlloc_IAT, 8, PAGE_READONLY, data->buffer);
 
 	import_table_fix:
 	{
@@ -198,13 +204,16 @@ void Injector::set_imports(HookData* data)
 				dll_import_lookup_table_entry++
 			)
 			{
+				//VirtualProtect_address((void*)&dll_import_lookup_table_entry->u1.Function, 8, PAGE_READWRITE, data->buffer);
 				if ((dll_import_lookup_table_entry->u1.AddressOfData & ORDINAL_IMPORT) != 0)
 				{
 					dll_import_lookup_table_entry->u1.Function = (ULONGLONG)GetProcAddress_address(dll, MAKEINTRESOURCEA(dll_import_lookup_table_entry->u1.Ordinal));
+					//VirtualProtect_address((void*)&dll_import_lookup_table_entry->u1.Function, 8, PAGE_READONLY, data->buffer);
 					continue;
 				}
 				PIMAGE_IMPORT_BY_NAME import_by_name = (PIMAGE_IMPORT_BY_NAME)(image_base + dll_import_lookup_table_entry->u1.AddressOfData);
 				dll_import_lookup_table_entry->u1.Function = (ULONGLONG)GetProcAddress_address(dll, import_by_name->Name);
+				//VirtualProtect_address((void*)&dll_import_lookup_table_entry->u1.Function, 8, PAGE_READONLY, data->buffer);
 			}
 		}
 	}
@@ -218,11 +227,11 @@ void Injector::set_imports(HookData* data)
 		for (int i = 0; i < number_of_sections; ++i, ++section)
 		{
 			DWORD protection = PAGE_READONLY;
-			if ((section->Characteristics & IMAGE_SCN_MEM_WRITE) != 0U)
+			if ((section->Characteristics & IMAGE_SCN_MEM_WRITE) != 0)
 				protection = PAGE_READWRITE;
-			else if ((section->Characteristics & IMAGE_SCN_MEM_EXECUTE) != 0U)
+			else if ((section->Characteristics & IMAGE_SCN_MEM_EXECUTE) != 0)
 				protection = PAGE_EXECUTE_READ;
-			VirtualProtect_address((void*)(image_base + section->VirtualAddress), section->Misc.VirtualSize, protection, (DWORD*)&data->set_imports);
+			VirtualProtect_address((void*)(image_base + section->VirtualAddress), section->SizeOfRawData, protection, data->buffer);
 		}
 	}
 
@@ -230,7 +239,7 @@ void Injector::set_imports(HookData* data)
 	{
 		PIMAGE_DATA_DIRECTORY exception_dir = &nt_headers->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXCEPTION];
 		if (!exception_dir->Size) goto call_tls_entry_points;
-		data->RtlAddFunctionTable_address((PIMAGE_RUNTIME_FUNCTION_ENTRY)(image_base + exception_dir->VirtualAddress), exception_dir->Size / sizeof(IMAGE_RUNTIME_FUNCTION_ENTRY), (uint64_t)image_base);
+		RtlAddFunctionTable_address((PIMAGE_RUNTIME_FUNCTION_ENTRY)(image_base + exception_dir->VirtualAddress), exception_dir->Size / sizeof(IMAGE_RUNTIME_FUNCTION_ENTRY), (uint64_t)image_base);
 	}
 
 	call_tls_entry_points:
