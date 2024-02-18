@@ -11,6 +11,7 @@ namespace
 	struct ProcessInfo
 	{
 		std::wstring name;
+		std::wstring window_name;
 		DWORD pid;
 	};
 	std::vector<ProcessInfo> processes{};
@@ -20,7 +21,42 @@ namespace
 	void ask_proc_name();
 
 
+	struct Process
+	{
+		DWORD pid;
+		HWND window;
+	};
 
+	BOOL CALLBACK EnumWindowsCallback(_In_ HWND hwnd, _In_ LPARAM lParam)
+	{
+		Process* p_process = (Process*)lParam;
+		DWORD pid = 0;
+		GetWindowThreadProcessId(hwnd, &pid);
+		if (pid == p_process->pid
+			&& GetWindow(hwnd, GW_OWNER) == NULL
+			&& IsWindowVisible(hwnd)
+			&& GetConsoleWindow() != hwnd
+			) {
+			p_process->window = hwnd;
+			return FALSE;
+		}
+		return TRUE;
+	}
+
+	HWND getProcessWindow(DWORD pid)
+	{
+		Process process = { pid, nullptr };
+		EnumWindows(&EnumWindowsCallback, (LPARAM)&process);
+		return process.window;
+	}
+
+	std::wstring getWindowName(HWND hwnd)
+	{
+		if (!hwnd) return L"";
+		wchar_t str[MAX_PATH];
+		GetWindowText(hwnd, str, MAX_PATH);
+		return std::wstring(str);
+	}
 
 	bool update_processes(const std::wstring& name)
 	{
@@ -36,8 +72,9 @@ namespace
 			{
 				if (!current_process_entry.th32ProcessID || !std::wcslen(current_process_entry.szExeFile)) continue;
 				std::wstring procname = current_process_entry.szExeFile;
+				std::wstring window_name = getWindowName(getProcessWindow(current_process_entry.th32ProcessID));
 				if (procname.find(name) == std::wstring::npos) continue;
-				new_processes.push_back({ std::move(procname), current_process_entry.th32ProcessID });
+				new_processes.push_back({ std::move(procname), window_name, current_process_entry.th32ProcessID });
 			}
 		}
 
@@ -53,7 +90,7 @@ namespace
 
 		for (int i = 0; i < processes.size(); ++i)
 		{
-			std::wcout << L"- " << i + 1 << L"  " << processes[i].name << L"  " << processes[i].pid << L'\n';
+			std::wcout << L"- " << i + 1 << L"  " << processes[i].name << L"  " << processes[i].pid << L"  " << processes[i].window_name << L'\n';
 		}
 
 		return true;
